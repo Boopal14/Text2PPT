@@ -1,0 +1,37 @@
+raj-otp npm package set-up (React Project):-
+
+i) Copy the file and paste it in the root folder of your react project.
+
+ii) Install the package using the command npm i raj-otp-1.0.8.tgz
+
+iii) Import the component "import OTPFlow from 'raj-otp';"
+
+iv) Use the component in the app 
+
+	<OTPFlow
+            secretKey="9D941AF69FAA5E041172D29A8B459BB4"
+            apiEndpoint="http://192.168.237.43:3002/api/check-otp-availability"
+            onComplete={(data) => {
+            console.log("Flow update:", data);
+            if (data.stage === 'verified') {
+              console.log("Mobile:", data.mobile);
+              console.log("OTP Verified!");
+            } else if (data.stage === 'submitted') {
+              console.log("User entered mobile:", data.mobile);
+            } else if (data.stage === 'error') {
+              console.log("OTP error:", data.error);
+            }
+          }}
+            initialTheme="light" // or "dark"
+          />
+
+v) Get the required data from onComplete which contains the stage,status and mobileNumber as its returning properties.
+
+
+phone_number_demo app (Android App):-
+
+i) Download the apk and install it.
+
+ii) Incase of any blockage from play protect, pause the play protect until installation.
+
+iii) Allow camera permission and permission to fetch the phone numbers.
