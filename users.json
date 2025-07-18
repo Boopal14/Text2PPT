@@ -1,0 +1,78 @@
+{
+  "Boopal": {
+    "name": "boo",
+    "password": "123"
+  },
+  "boopal14": {
+    "fullname": "boopal",
+    "password": "123"
+  },
+  "ram1": {
+    "fullname": "boopal",
+    "password": "1234567"
+  },
+  "raj1": {
+    "fullname": "raj",
+    "password": "1234567"
+  },
+  "ravi1": {
+    "fullname": "ravi",
+    "password": "1234567"
+  },
+  "hgg": {
+    "fullname": "yg",
+    "password": "123456"
+  },
+  "aa": {
+    "fullname": "a",
+    "password": "123456"
+  },
+  "tst0001": {
+    "fullname": "test0001",
+    "email": "test0001@gmail.com",
+    "mobile": "1234567890",
+    "password": "test0001"
+  },
+  "test0001": {
+    "fullname": "Boopal N",
+    "email": "test0001@gmail.com",
+    "mobile": "8610204044",
+    "password": "test0001"
+  },
+  "test0002": {
+    "fullname": "test0002",
+    "email": "71762131010@cit.edu.in",
+    "mobile": "8610204044",
+    "password": "test0002"
+  },
+  "test0003": {
+    "fullname": "Boopal N",
+    "email": "71762131010@cit.edu.in",
+    "mobile": "8610204044",
+    "password": "test0003"
+  },
+  "test0005": {
+    "fullname": "Boopal N",
+    "email": "71762131010@cit.edu.in",
+    "mobile": "8610204044",
+    "password": "test0005"
+  },
+  "niru2004": {
+    "fullname": "nirurani",
+    "email": "71762131032@cit.edu.in",
+    "mobile": "8610204044",
+    "password": "niru2004"
+  },
+  "test10003": {
+    "fullname": "test10003",
+    "email": "71762131010@cit.edu.in",
+    "mobile": "8610204044",
+    "password": "test10003"
+  },
+  "test10004": {
+    "fullname": "test10004",
+    "email": "71762131010@cit.edu.in",
+    "mobile": "8610204044",
+    "password": "test10004"
+  }
+}
