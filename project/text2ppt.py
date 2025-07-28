@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import uuid
 from pptx.chart.data import CategoryChartData
-from pptx.enum.chart import XL_CHART_TYPE
+from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 from pptx.util import Inches
 
 
@@ -461,6 +461,197 @@ def create_content_slide(prs, title, bullets, page_number, total_pages, username
     add_fade_transition(slide)
     return slide
 
+def get_chart_type_enum(chart_type_str):
+    """Convert string chart type to PowerPoint chart type enum"""
+    chart_type_mapping = {
+        'bar': XL_CHART_TYPE.BAR_CLUSTERED,
+        'column': XL_CHART_TYPE.COLUMN_CLUSTERED,
+        'line': XL_CHART_TYPE.LINE,
+        'pie': XL_CHART_TYPE.PIE,
+        'donut': XL_CHART_TYPE.DOUGHNUT,
+        'area': XL_CHART_TYPE.AREA,
+        'scatter': XL_CHART_TYPE.XY_SCATTER
+    }
+    return chart_type_mapping.get(chart_type_str.lower(), XL_CHART_TYPE.COLUMN_CLUSTERED)
+
+def create_chart_slide(prs, title, df, column_name, chart_type, page_number, total_pages, username):
+    """Create a slide with a chart from CSV data"""
+    slide_layout = prs.slide_layouts[5]  # Blank layout
+    slide = prs.slides.add_slide(slide_layout)
+    
+    add_slide_design(slide)
+    
+    # Add title
+    title_box = slide.shapes.add_textbox(Inches(1), Inches(0.5), Inches(8), Inches(1))
+    title_frame = title_box.text_frame
+    title_frame.text = title
+    title_para = title_frame.paragraphs[0]
+    title_para.font.size = Pt(28)
+    title_para.font.bold = True
+    title_para.font.color.rgb = RGBColor(25, 25, 112)
+    title_para.alignment = PP_ALIGN.CENTER
+    
+    # Prepare chart data
+    chart_data = CategoryChartData()
+    
+    # Use first column as categories (x-axis labels)
+    categories = df.iloc[:, 0].astype(str).tolist()[:10]  # Limit to 10 items for readability
+    
+    # Find the column index
+    if column_name in df.columns:
+        values = df[column_name].iloc[:10].tolist()  # Limit to 10 items
+        chart_data.categories = categories
+        chart_data.add_series(column_name, values)
+        
+        # Create chart
+        chart_type_enum = get_chart_type_enum(chart_type)
+        chart_shape = slide.shapes.add_chart(
+            chart_type_enum,
+            Inches(1.5), Inches(1.5), Inches(7), Inches(5),
+            chart_data
+        )
+        chart = chart_shape.chart
+        
+        # Customize chart appearance
+        try:
+            chart.has_legend = True
+            chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+        except Exception as e:
+            print(f"Could not set legend position: {e}")
+            # If legend positioning fails, just ensure legend is visible
+            try:
+                chart.has_legend = True
+            except:
+                pass
+    
+    add_header_footer(slide, username, page_number, total_pages)
+    add_fade_transition(slide)
+    return slide
+
+def create_csv_presentation(csv_path, chart_type, username):
+    """Create a PowerPoint presentation from CSV data with specified chart type"""
+    try:
+        # Read CSV file
+        try:
+            df = pd.read_csv(csv_path)
+        except UnicodeDecodeError:
+            df = pd.read_csv(csv_path, encoding='latin1')
+        
+        if df.empty or len(df.columns) < 2:
+            raise ValueError("CSV must have at least 2 columns with data")
+        
+        # Clean the data - remove rows with all NaN values
+        df = df.dropna(how='all')
+        
+        # Create presentation
+        prs = Presentation()
+        
+        # Create title slide
+        main_title = f"Data Analysis - {chart_type.title()} Charts"
+        subtitle = f"Generated from CSV data on {datetime.now().strftime('%B %d, %Y')}"
+        create_title_slide(prs, main_title, subtitle, username)
+        
+        # Get numeric columns for charting
+        numeric_columns = df.select_dtypes(include=['number']).columns.tolist()
+        
+        if not numeric_columns:
+            raise ValueError("CSV must contain at least one numeric column for charting")
+        
+        slide_count = 1
+        total_slides = len(numeric_columns) + 2  # +2 for title and thank you slides
+        
+        # Create a slide for each numeric column
+        for column in numeric_columns:
+            # Skip columns that are all NaN
+            if df[column].isna().all():
+                continue
+                
+            slide_count += 1
+            slide_title = f"{column} - {chart_type.title()} Chart"
+            
+            try:
+                create_chart_slide(prs, slide_title, df, column, chart_type, slide_count, total_slides, username)
+            except Exception as e:
+                print(f"Error creating chart for column {column}: {e}")
+                # Create a text slide instead if chart creation fails
+                create_error_slide(prs, f"Error creating chart for {column}", str(e), slide_count, total_slides, username)
+        
+        # Create thank you slide
+        slide_count += 1
+        try:
+            thank_you_layout = prs.slide_layouts[6]
+        except:
+            thank_you_layout = prs.slide_layouts[0]
+        
+        thank_slide = prs.slides.add_slide(thank_you_layout)
+        add_slide_design(thank_slide)
+        
+        thank_box = thank_slide.shapes.add_textbox(Inches(2), Inches(3), Inches(6), Inches(2))
+        thank_frame = thank_box.text_frame
+        thank_frame.text = "Thank You!"
+        thank_para = thank_frame.paragraphs[0]
+        thank_para.font.size = Pt(48)
+        thank_para.font.bold = True
+        thank_para.font.color.rgb = RGBColor(25, 25, 112)
+        thank_para.alignment = PP_ALIGN.CENTER
+        
+        contact_box = thank_slide.shapes.add_textbox(Inches(2), Inches(5.5), Inches(6), Inches(1))
+        contact_frame = contact_box.text_frame
+        contact_frame.text = "Data Visualization Complete"
+        contact_para = contact_frame.paragraphs[0]
+        contact_para.font.size = Pt(24)
+        contact_para.font.color.rgb = RGBColor(70, 130, 180)
+        contact_para.alignment = PP_ALIGN.CENTER
+        
+        add_header_footer(thank_slide, username, slide_count, total_slides)
+        add_fade_transition(thank_slide)
+        
+        # Save presentation
+        filename = f"{username}_csv_{chart_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
+        filepath = os.path.join(PPT_FOLDER, filename)
+        prs.save(filepath)
+        return filepath
+        
+    except Exception as e:
+        print(f"Error in create_csv_presentation: {e}")
+        import traceback
+        traceback.print_exc()
+        raise e
+
+def create_error_slide(prs, title, error_message, page_number, total_pages, username):
+    """Create an error slide when chart creation fails"""
+    try:
+        bullet_layout = prs.slide_layouts[1]
+        slide = prs.slides.add_slide(bullet_layout)
+        
+        add_slide_design(slide)
+        
+        # Add title
+        title_placeholder = slide.shapes.title
+        title_placeholder.text = title
+        title_frame = title_placeholder.text_frame
+        title_para = title_frame.paragraphs[0]
+        title_para.font.size = Pt(28)
+        title_para.font.bold = True
+        title_para.font.color.rgb = RGBColor(255, 0, 0)  # Red for error
+        
+        # Add error message
+        content_placeholder = slide.shapes.placeholders[1]
+        text_frame = content_placeholder.text_frame
+        text_frame.clear()
+        
+        p = text_frame.paragraphs[0]
+        p.text = f"Unable to create chart: {error_message}"
+        p.font.size = Pt(20)
+        p.font.color.rgb = RGBColor(100, 100, 100)
+        
+        add_header_footer(slide, username, page_number, total_pages)
+        add_fade_transition(slide)
+        return slide
+    except Exception as e:
+        print(f"Error creating error slide: {e}")
+        return None
+
 def create_enhanced_ppt(text, reference, username, image_paths=None):
     """Create an enhanced PowerPoint presentation"""
     try:
@@ -605,40 +796,6 @@ async def signin(username: str = Form(...), password: str = Form(...)):
         return RedirectResponse(f"/main.html?user={username}", status_code=303)
     return HTMLResponse("<h2>Invalid login</h2>", status_code=401)
 
-def generate_graph_from_csv(file_path, username):
-        try:
-            df = pd.read_csv(file_path)
-            print(f"CSV Columns: {df.columns.tolist()}")
-
-            if df.empty or len(df.columns) < 2:
-                print("CSV does not have enough data for graphing.")
-                return None
-
-            plt.figure(figsize=(8, 5))
-            numeric_cols = df.select_dtypes(include=['number']).columns
-            if len(numeric_cols) < 2:
-                print("Need at least two numeric columns for a meaningful graph.")
-                return None
-
-            x = numeric_cols[0]
-            for y in numeric_cols[1:]:
-                plt.plot(df[x], df[y], label=f"{y}")
-
-            plt.xlabel(x)
-            plt.title("CSV Data Graph")
-            plt.legend()
-            plt.grid(True)
-
-            graph_path = os.path.join(UPLOAD_FOLDER, f"{username}_graph.png")
-            plt.tight_layout()
-            plt.savefig(graph_path)
-            plt.close()
-            print(f"Graph saved to {graph_path}")
-            return graph_path
-        except Exception as e:
-            print(f"Failed to generate graph: {e}")
-            return None
-
 @app.post("/generate-ppt")
 async def generate_ppt(
     request: Request,
@@ -653,12 +810,11 @@ async def generate_ppt(
     browser = request.headers.get("user-agent", "unknown")
     logs = load_logs()
 
-    
+    # Handle document upload
     if doc and doc.filename:
         contents = await doc.read()
         if len(contents) > MAX_FILE_SIZE:
             raise HTTPException(status_code=413, detail="Uploaded document is too large (maximum 10 MB allowed)")
-        
         
         doc.file.seek(0)
 
@@ -676,7 +832,6 @@ async def generate_ppt(
             elif doc.filename.endswith(".pdf"):
                 text = extract_text_from_pdf(doc_path)
             
-            
             word_count = len(text.split())
             if word_count > MAX_TEXT_WORDS:
                 raise HTTPException(
@@ -684,28 +839,23 @@ async def generate_ppt(
                     detail=f"Text extracted from the document is too long ({word_count} words). Limit is {MAX_TEXT_WORDS} words."
                 )
         finally:
-            
             if os.path.exists(doc_path):
                 os.remove(doc_path)
 
-
-    
     if not text.strip():
         return HTMLResponse("<h2>Please provide text content or upload a document</h2>", status_code=400)
 
-    
     logs[username] = {
         "ip": ip,
         "browser": browser,
-        "history": logs.get(username, {}).get("history", []) + [text.strip()[:100]]  # Store first 100 chars
+        "history": logs.get(username, {}).get("history", []) + [text.strip()[:100]]
     }
     save_logs(logs)
 
-    
+    # Handle image uploads
     image_paths = []
     for image in images:
         if image.filename:
-           
             contents = await image.read()
             if len(contents) > MAX_IMAGE_SIZE:
                 raise HTTPException(
@@ -713,7 +863,6 @@ async def generate_ppt(
                     detail=f"Image '{image.filename}' is too large (maximum 2 MB allowed)"
                 )
 
-            
             image.file.seek(0)
 
             image_path = os.path.join(UPLOAD_FOLDER, f"{datetime.now().timestamp()}_{image.filename}")
@@ -722,9 +871,7 @@ async def generate_ppt(
             image_paths.append(image_path)
 
     try:
-        
         ppt_path = create_enhanced_ppt(text, reference, username, image_paths)
-        
         
         for image_path in image_paths:
             if os.path.exists(image_path):
@@ -736,38 +883,70 @@ async def generate_ppt(
             filename="enhanced_presentation.pptx"
         )
     except Exception as e:
-        
         for image_path in image_paths:
             if os.path.exists(image_path):
                 os.remove(image_path)
-         # Handle CSV and generate graph
-        graph_image_path = None
-        if csv_file and csv_file.filename.endswith(".csv"):
-            csv_path = os.path.join(UPLOAD_FOLDER, f"{username}_{csv_file.filename}")
-            with open(csv_path, "wb") as buffer:
-                shutil.copyfileobj(csv_file.file, buffer)
-            graph_image_path = generate_graph_from_csv(csv_path, username)
-            if os.path.exists(csv_path):
-                os.remove(csv_path)
-            if graph_image_path:
-                image_paths.append(graph_image_path)
+        raise HTTPException(status_code=500, detail=f"Error generating PPT: {str(e)}")
 
-        # Generate PowerPoint
-        try:
-            ppt_path = create_enhanced_ppt(text, reference, username, image_paths)
-            for path in image_paths:
-                if os.path.exists(path):
-                    os.remove(path)
-            return FileResponse(
-                ppt_path,
-                media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                filename="enhanced_presentation.pptx"
-            )
-        except Exception as e:
-            for path in image_paths:
-                if os.path.exists(path):
-                    os.remove(path)
-            raise HTTPException(status_code=500, detail=f"Error generating PPT: {str(e)}")
+@app.post("/generate-from-csv")
+async def generate_from_csv(
+    request: Request,
+    username: str = Form(...),
+    csv_file: UploadFile = File(...),
+    chart_type: str = Form(...)
+):
+    """Generate PowerPoint presentation from CSV file with specified chart type"""
+    ip = request.client.host or "unknown"
+    browser = request.headers.get("user-agent", "unknown")
+    logs = load_logs()
+
+    if not csv_file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Please upload a CSV file")
+
+    if not chart_type:
+        raise HTTPException(status_code=400, detail="Please select a chart type")
+
+    # Valid chart types
+    valid_chart_types = ['bar', 'column', 'line', 'pie', 'donut', 'area']
+    if chart_type.lower() not in valid_chart_types:
+        raise HTTPException(status_code=400, detail=f"Invalid chart type. Choose from: {', '.join(valid_chart_types)}")
+
+    csv_path = os.path.join(UPLOAD_FOLDER, f"{username}_{uuid.uuid4()}_{csv_file.filename}")
+
+    try:
+        # Save uploaded CSV file
+        with open(csv_path, "wb") as buffer:
+            shutil.copyfileobj(csv_file.file, buffer)
+        
+        # Log the activity
+        logs[username] = {
+            "ip": ip,
+            "browser": browser,
+            "history": logs.get(username, {}).get("history", []) + [f"CSV Chart: {chart_type}"]
+        }
+        save_logs(logs)
+
+        # Generate presentation from CSV
+        ppt_path = create_csv_presentation(csv_path, chart_type, username)
+
+        return FileResponse(
+            ppt_path,
+            media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            filename=f"{chart_type}_chart_presentation.pptx"
+        )
+
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        print(f"Error in generate_from_csv: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generating presentation: {str(e)}")
+    finally:
+        # Clean up uploaded file
+        if os.path.exists(csv_path):
+            try:
+                os.remove(csv_path)
+            except Exception as e:
+                print(f"Cleanup error: {e}")
 
 @app.post("/generate-from-doc")
 async def generate_from_doc(
@@ -788,50 +967,7 @@ async def generate_from_doc(
             shutil.copyfileobj(docFile.file, buffer)
         print(f"Uploaded file saved at: {path}")
 
-        # CASE 1: CSV FILE
-        if extension == ".csv":
-            try:
-                try:
-                    df = pd.read_csv(path)  # Try UTF-8
-                except UnicodeDecodeError:
-                    df = pd.read_csv(path, encoding='latin1')  # Fallback
-
-                if df.shape[1] < 2:
-                    raise HTTPException(status_code=400, detail="CSV must have at least 2 columns.")
-                
-                prs = Presentation()
-                title_slide = prs.slides.add_slide(prs.slide_layouts[0])
-                title_slide.shapes.title.text = f"CSV Visualization by {username}"
-                title_slide.placeholders[1].text = "Auto-generated from CSV"
-
-                for i in range(1, df.shape[1]):
-                    chart_data = CategoryChartData()
-                    chart_data.categories = list(df.iloc[:, 0])
-                    chart_data.add_series(df.columns[i], list(df.iloc[:, i]))
-
-                    slide = prs.slides.add_slide(prs.slide_layouts[5])
-                    slide.shapes.title.text = f"{df.columns[i]} Chart"
-                    slide.shapes.add_chart(
-                        XL_CHART_TYPE.COLUMN_CLUSTERED,
-                        Inches(1), Inches(1.5), Inches(8), Inches(4.5),
-                        chart_data
-                    )
-                
-                if reference:
-                    ref_slide = prs.slides.add_slide(prs.slide_layouts[1])
-                    ref_slide.shapes.title.text = "Reference"
-                    ref_slide.placeholders[1].text = reference
-
-                output_path = f"csv_generated_{uuid.uuid4().hex[:6]}.pptx"
-                prs.save(output_path)
-
-                return FileResponse(output_path, media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation", filename="CSV_Generated_Slides.pptx")
-
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=f"CSV Error: {str(e)}")
-
-
-        # CASE 2: DOCX, TXT, PDF
+        # Handle different file types
         content = ""
         if extension == ".docx":
             document = Document(path)
@@ -842,7 +978,7 @@ async def generate_from_doc(
         elif extension == ".pdf":
             content = extract_text_from_pdf(path)
         else:
-            raise HTTPException(status_code=400, detail="Unsupported file format. Only .csv, .docx, .txt, and .pdf are allowed.")
+            raise HTTPException(status_code=400, detail="Unsupported file format. Only .docx, .txt, and .pdf are allowed.")
 
         if not content.strip():
             raise HTTPException(status_code=400, detail="No text content found in the document")
@@ -873,7 +1009,6 @@ async def generate_from_doc(
             except Exception as e:
                 print(f"Cleanup error: {e}")
 
-
 @app.on_event("startup")
 async def startup_event():
     """Test summarizer functionality on startup"""
@@ -888,7 +1023,6 @@ async def startup_event():
     """
     
     try:
-        
         title = summarizer.generate_title(test_text)
         bullets = summarizer.generate_bullet_points(test_text, max_bullets=3)
         
@@ -931,11 +1065,6 @@ async def test_summarizer_endpoint():
             "error": str(e),
             "nltk_available": getattr(summarizer, 'nltk_available', False)
         })
-
-
-
-
-
 
 @app.get("/user-history/{username}")
 async def get_user_history(username: str):
